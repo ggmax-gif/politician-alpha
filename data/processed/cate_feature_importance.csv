@@ -1,0 +1,16 @@
+feature,importance
+market_vol_20d,0.5537838531314092
+trade_year,0.10343068911350635
+day_of_week,0.09023033973905317
+log_amount,0.07557063760115502
+sec_Other,0.04719688378413474
+sec_Industrials,0.04636365961276746
+sec_Consumer Discretionary,0.027962668298469117
+sec_Energy,0.02055042692194729
+sec_Financials,0.015977049318467915
+sec_Information Technology,0.015045788168180163
+sec_Health Care,0.0028027218295203606
+sec_Consumer Staples,0.0010852824813893313
+sec_Materials,0.0
+sec_Real Estate,0.0
+sec_Utilities,0.0
