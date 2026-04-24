@@ -70,6 +70,22 @@ All steps are idempotent — rerunning skips files that already exist.
     └── processed/           # Cleaned, labelled analytic dataset + regression tables
 ```
 
+## Environment requirements
+pandas
+numpy
+requests
+beautifulsoup4
+lxml
+pyyaml
+yfinance
+statsmodels
+scikit-learn 
+econml
+matplotlib 
+seaborn 
+jupyter 
+tqdm
+
 ## Caveat
 
 Correlation is not causation. This project measures *realised* performance of
