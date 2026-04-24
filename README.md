@@ -71,20 +71,21 @@ All steps are idempotent — rerunning skips files that already exist.
 ```
 
 ## Environment requirements
-pandas
-numpy
-requests
-beautifulsoup4
-lxml
-pyyaml
-yfinance
-statsmodels
-scikit-learn 
-econml
-matplotlib 
-seaborn 
-jupyter 
-tqdm
+
+1. pandas
+2. numpy
+3. requests
+4. beautifulsoup4
+5. lxml
+6. pyyaml
+7. yfinance
+8. statsmodels
+9. scikit-learn
+10. econml
+11. matplotlib
+12. seaborn
+13. jupyter
+14. tqdm
 
 ## Caveat
 
