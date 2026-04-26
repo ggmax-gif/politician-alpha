@@ -20,3 +20,8 @@ data/interim/
 
 # But keep processed outputs so the blog notebook can run offline
 !data/processed/
+
+# Quarto render artifacts — regenerable via `make html`
+notebooks/blog.html
+notebooks/blog_files/
+notebooks/.quarto/

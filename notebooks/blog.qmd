@@ -1,0 +1,282 @@
+---
+title: Do US Senators Beat the Market?
+subtitle: An empirical investigation of Senate stock trades, 2012–2020
+author: Daniel Fung
+date: '2026-04-26'
+format:
+  html:
+    toc: true
+    toc-location: left
+    toc-depth: 3
+    toc-title: On this page
+    code-fold: true
+    code-tools: true
+    code-summary: Show code
+    theme: cosmo
+    fig-width: 9
+    fig-height: 5
+    df-print: paged
+    smooth-scroll: true
+    embed-resources: true
+execute:
+  echo: true
+  warning: false
+  message: false
+jupyter: python3
+---
+
+
+*BEE2041 — Data Science in Economics, University of Exeter, 2026*
+
+---
+
+## 1. Hook
+
+Between September 2012 and November 2020, 37 US senators filed **2,746 stock purchase disclosures** under the STOCK Act. Over the 90 trading days following those purchases, Democratic senators' picks returned an average of **9.0% above the benchmark**, Republican senators' picks **5.9% above**. Both beat the market — but is that really skill, or are they just taking on more risk?
+
+The headline numbers are striking. The real story, uncovered by a causal forest, is more nuanced: **when and under what conditions** a senator trades matters far more than which party they belong to.
+
+## 2. Why this matters
+
+The Stop Trading on Congressional Knowledge (STOCK) Act (2012) requires members of Congress to disclose stock trades within 45 days. The idea is transparency: lawmakers with access to non-public information about regulation, contracts, and economic policy should not be able to quietly profit from it.
+
+Yet the disclosures themselves are publicly available — which means anyone can, in principle, follow senators' trades. Academic work by Ziobrowski et al. (2004, 2011) found significant abnormal returns on Senate portfolios in the 1990s. Whether that edge persists after the STOCK Act, and whether it differs by party, is an open empirical question.
+
+This project uses a full panel of Senate Periodic Transaction Reports (PTRs) filed between 2012 and 2020 to estimate CAPM alpha by party, then uses a **causal forest** (Wager & Athey 2018) to surface where within that panel the heterogeneity really lies.
+
+## 3. Data and method
+
+**Data sources:**
+- Senate trades: 8,350 raw PTR records from the `timothycarambat/senate-stock-watcher-data` GitHub mirror (scrubbed from Senate eFD). Filtered to 5,447 stock trades with valid tickers.
+- S&P 500 constituents: scraped from the Wikipedia "List of S&P 500 companies" page using `requests` + `BeautifulSoup` + regex, providing GICS sector labels.
+- Party affiliation: matched via `unitedstates/congress-legislators` YAML files (100% name-match rate across 37 senators).
+- Prices: daily adjusted close from `yfinance`, 2012–2022, covering 837 unique tickers.
+- Benchmark: S&P 500 (`^GSPC`); risk-free rate: 13-week T-bill yield (`^IRX`).
+
+**Forward returns** are computed at 30, 90 and 180 trading-day horizons from each trade date. Excess return = trade return − risk-free rate.
+
+**Track A — CAPM:** For each (party, horizon) pair, we regress
+$$r_i - r_f = \alpha + \beta(r_m - r_f) + \varepsilon$$
+using HC3 robust standard errors (`statsmodels`).
+
+**Track B — Causal forest:** Treatment $T=1$ for Democratic purchases, $T=0$ for Republican. Outcome $Y$ = 90-day excess return. Features $X$ include GICS sector, log trade size, day of week, market volatility regime, and trade year. We fit `CausalForestDML` (EconML; Athey et al. 2019) using gradient-boosted trees for the outcome nuisance and logistic regression for the treatment nuisance — the double-ML step that removes confounding before the forest estimates conditional average treatment effects (CATEs).
+
+Full replication: `git clone https://github.com/ggmax-gif/politician-alpha && make all`
+
+```{python}
+from pathlib import Path
+import pandas as pd
+import plotly.express as px
+import plotly.io as pio
+pio.templates.default = 'plotly_white'
+
+ROOT = Path().resolve().parent
+PROC = ROOT / 'data' / 'processed'
+
+df   = pd.read_csv(PROC / 'trades_labelled.csv', parse_dates=['transaction_date'])
+capm = pd.read_csv(PROC / 'capm_results.csv')
+cate = pd.read_csv(PROC / 'cate_per_trade.csv', parse_dates=['transaction_date'])
+fi   = pd.read_csv(PROC / 'cate_feature_importance.csv')
+
+PARTY_COLOURS = {'Democrat': '#1f77b4', 'Republican': '#d62728'}
+
+print(f"Trades: {len(df):,} | Senators: {df.senator.nunique()} | "
+      f"{df.transaction_date.min().date()} to {df.transaction_date.max().date()}")
+```
+
+## 4. Headline result — cumulative returns and CAPM alpha
+
+```{python}
+#| label: fig-cumulative
+#| fig-cap: Cumulative excess return on senator stock purchases (90-day forward, sum of trade-level)
+
+purchases = df[df.type == 'Purchase'].dropna(subset=['excess_ret_90']).sort_values('transaction_date')
+cum = (purchases.groupby(['party', 'transaction_date'])['excess_ret_90'].sum().reset_index())
+cum['cum_excess_ret'] = cum.groupby('party')['excess_ret_90'].cumsum()
+
+fig = px.line(cum, x='transaction_date', y='cum_excess_ret', color='party',
+              color_discrete_map=PARTY_COLOURS,
+              labels={'transaction_date': 'Trade date',
+                      'cum_excess_ret': 'Cumulative excess return (sum of trade-level, 90d)',
+                      'party': 'Party'})
+fig.update_layout(hovermode='x unified', height=440)
+fig.show()
+```
+
+```{python}
+#| label: fig-alpha
+#| fig-cap: CAPM α by party and forward-return horizon, with 95% CIs (HC3 SEs)
+
+capm_ = capm.copy()
+capm_['alpha_pct'] = capm_['alpha'] * 100
+capm_['ci_pct'] = 1.96 * capm_['alpha_se'] * 100
+
+fig = px.bar(capm_, x='horizon_days', y='alpha_pct', color='party', barmode='group',
+             error_y='ci_pct',
+             color_discrete_map=PARTY_COLOURS,
+             labels={'horizon_days': 'Forward horizon (days)',
+                     'alpha_pct': 'CAPM α (%, 95% CI)',
+                     'party': 'Party'},
+             hover_data={'alpha_t': ':+.2f', 'alpha_p': ':.3f',
+                         'beta': ':.3f', 'n': True, 'ci_pct': False})
+fig.add_hline(y=0, line_color='gray', line_dash='dash')
+fig.update_layout(height=440)
+fig.show()
+```
+
+The left panel shows that both parties accumulate positive excess returns over the sample period, with Democrats pulling ahead particularly from 2016 onward. The right panel tells a more sobering story: once we control for **market-risk exposure** (β), Jensen's alpha is statistically indistinguishable from zero for all party × horizon combinations except Republicans at 30 days, where the estimated alpha is actually **negative** (α = −0.76%, t = −3.5, p < 0.001).
+
+The β estimates are informative: both parties' trades load heavily on market risk (β ≈ 1.25–1.38), meaning senators are not buying defensive stocks — they are tilted toward higher-volatility names. After adjusting for that tilt, the apparent outperformance largely disappears.
+
+This is consistent with — but does not prove — the hypothesis that senators' apparent gains reflect *risk-taking* rather than *information*.
+
+```{python}
+#| label: tbl-capm
+#| tbl-cap: CAPM regression results by party and forward-return horizon (HC3 SEs).
+#| execution: {iopub.execute_input: '2026-04-22T15:32:21.932353Z', iopub.status.busy: '2026-04-22T15:32:21.932283Z', iopub.status.idle: '2026-04-22T15:32:21.950785Z', shell.execute_reply: '2026-04-22T15:32:21.950430Z'}
+
+# CAPM results table
+display(
+    capm.rename(columns={
+        'party': 'Party', 'horizon_days': 'Horizon (days)',
+        'alpha': 'α', 'alpha_se': 'SE(α)', 'alpha_t': 't',
+        'alpha_p': 'p-value', 'beta': 'β', 'n': 'n'
+    })[['Party','Horizon (days)','α','SE(α)','t','p-value','β','n']]
+    .style.format({'α': '{:+.4f}', 'SE(α)': '{:.4f}', 't': '{:+.2f}',
+                   'p-value': '{:.3f}', 'β': '{:.3f}'})
+    .set_caption('Table 1. CAPM regression results by party and forward-return horizon (HC3 SEs)')
+)
+```
+
+## 5. The real story — what the causal forest reveals
+
+If the average story is "no significant alpha after risk adjustment", what explains the raw gap between the two parties? The causal forest is designed to answer exactly this: **in which subgroups is the Democrat–Republican gap largest, and what drives it?**
+
+> **Pre-processing for the violin plot.** Per-trade CATEs are winsorised at the 1st/99th percentiles so a handful of extreme honest-tree estimates do not squash the visible distribution. The mean and CIs reported in the text use raw (un-winsorised) values.
+
+```{python}
+# Winsorise CATE estimates at 1st/99th percentiles for the visualisation —
+# a handful of extreme honest-tree estimates would otherwise compress the
+# bulk of the distribution. Tabular CATE summaries below use raw values.
+lo, hi = cate['cate'].quantile([0.01, 0.99])
+cate['cate_w'] = cate['cate'].clip(lo, hi)
+lo, hi
+```
+
+::: {.panel-tabset}
+
+### Distribution
+
+```{python}
+#| label: fig-cate-violin
+#| fig-cap: Per-trade CATE distribution by party (winsorised at 1st/99th percentiles). Hover for senator + ticker.
+
+fig = px.violin(cate, x='party', y='cate_w', color='party', box=True, points='all',
+                color_discrete_map=PARTY_COLOURS,
+                labels={'cate_w': 'CATE (90d excess return, winsorised)', 'party': ''},
+                hover_data=['senator', 'ticker', 'gics_sector', 'transaction_date'])
+fig.update_layout(showlegend=False, height=500)
+fig.show()
+```
+
+### By sector
+
+```{python}
+#| label: fig-cate-sector
+#| fig-cap: Mean per-trade CATE by GICS sector and party (raw, not winsorised)
+
+sec = (cate.groupby(['gics_sector', 'party'])['cate'].mean().reset_index())
+order = sec.groupby('gics_sector')['cate'].mean().sort_values().index
+sec['gics_sector'] = pd.Categorical(sec['gics_sector'], categories=order, ordered=True)
+sec = sec.sort_values('gics_sector')
+
+fig = px.bar(sec, x='cate', y='gics_sector', color='party', barmode='group',
+             color_discrete_map=PARTY_COLOURS,
+             labels={'cate': 'Mean CATE (90d excess return)', 'gics_sector': 'GICS sector', 'party': 'Party'})
+fig.update_layout(height=520)
+fig.show()
+```
+
+### Drivers (feature importance)
+
+```{python}
+#| label: fig-fi
+#| fig-cap: Causal-forest feature importances for explained heterogeneity in 90-day excess returns
+
+fig = px.bar(fi.sort_values('importance'), x='importance', y='feature',
+             orientation='h', color='importance', color_continuous_scale='Blues',
+             labels={'importance': 'Feature importance', 'feature': ''})
+fig.update_layout(coloraxis_showscale=False, height=420)
+fig.show()
+```
+
+:::
+
+The causal forest estimates a positive **average treatment effect (ATE) of +0.95 percentage points** in favour of Democrats over 90 days (i.e., conditional on observable trade characteristics, Democratic purchases outperform Republican ones by roughly 1 percentage point). The left violin plot shows the full CATE distribution: both parties' distributions are centred above zero and substantially overlapping, which confirms that the gap is real but modest.
+
+The sector decomposition (right) reveals that Democrats appear to hold a relative edge in **Industrials, Communication Services and Health Care**, while Republicans have a slight edge in **Consumer Staples and Energy**. These are directionally plausible — Industrials and Health Care feature heavily in Congressional committee oversight, areas where legislative insiders may have an informational advantage.
+
+However, the most important finding comes from the feature importances:
+
+**Market volatility regime (`market_vol_20d`) accounts for 55% of the explained heterogeneity** — more than all sector variables combined. This suggests the Democrat–Republican gap is not evenly distributed over time; it is concentrated in specific volatility regimes. When markets are turbulent, the relative performance of senators' trades diverges most sharply, which is consistent with volatility periods also being periods of heightened legislative activity (financial crises, pandemic, election cycles).
+
+```{python}
+#| label: fig-sector
+#| fig-cap: Mean 90-day excess return on senator purchases by GICS sector and party
+
+purchases = df[df.type == 'Purchase'].dropna(subset=['excess_ret_90'])
+sec_ret = (purchases.groupby(['gics_sector', 'party'])['excess_ret_90'].mean().reset_index())
+sec_ret['excess_ret_90_pct'] = sec_ret['excess_ret_90'] * 100
+order = sec_ret.groupby('gics_sector')['excess_ret_90_pct'].mean().sort_values().index
+sec_ret['gics_sector'] = pd.Categorical(sec_ret['gics_sector'], categories=order, ordered=True)
+sec_ret = sec_ret.sort_values('gics_sector')
+
+fig = px.bar(sec_ret, x='excess_ret_90_pct', y='gics_sector', color='party', barmode='group',
+             color_discrete_map=PARTY_COLOURS,
+             labels={'excess_ret_90_pct': 'Mean 90-day excess return (%)',
+                     'gics_sector': 'GICS sector', 'party': 'Party'})
+fig.update_layout(height=520)
+fig.show()
+```
+
+The sector-level mean returns (above) reinforce the heterogeneity story: both parties earn positive mean excess returns across most sectors, but the magnitude varies considerably. The **Information Technology** sector stands out as strong for both parties, consistent with a decade-long bull market in tech; the apparent Democrat advantage in Industrials is the most relevant sector-level finding for the committee-oversight hypothesis.
+
+## 6. Caveats
+
+Several limitations should temper any strong interpretation:
+
+**Disclosure lag.** Senators have up to 45 days to file after a trade. By the time disclosures are public, the price impact of any informational advantage may already have occurred. Our returns are measured from the *trade date* (which we observe), not the *publication date*, so we are computing an upper bound on the returns a follower could have earned.
+
+**Amount-range censoring.** Dollar values are disclosed only as ranges (e.g. \$15,001–\$50,000). We use the geometric mean of each range as a point estimate. This introduces measurement error in any amount-weighted analysis.
+
+**Survivorship and selection.** Senators who trade more appear more in the data. High-trading senators may have systematically different investment skill (or risk appetite) from low-trading colleagues. The causal forest conditions on observable trade characteristics but cannot control for unobserved senator-level ability.
+
+**Causal identification.** Party affiliation is not randomly assigned. The causal forest estimates *conditional* average treatment effects — how the Democrat–Republican gap varies across trade characteristics — but it does not establish that *being a Democrat causes* better returns. Omitted variables correlated with both party and returns (e.g., seniority, committee assignments, constituent industry composition) could confound the estimate.
+
+**Data vintage.** The mirror dataset ends in late 2020. Post-STOCK-Act enforcement has strengthened since then; any edge documented here may have diminished further.
+
+## 7. Conclusion
+
+The data suggest that US senators' stock purchases earned positive raw excess returns between 2012 and 2020, but **not statistically significant risk-adjusted alpha** once their above-market beta is accounted for. The estimated Democrat–Republican CATE is a modest +0.95 percentage points, and the causal forest reveals that this gap is most pronounced during high-volatility market regimes — not simply a function of sector allocation.
+
+The honest summary: senators appear to take on more market risk than a passive index investor, and much of their apparent outperformance reflects that risk rather than informational advantage. Whether residual differences reflect genuine legislative intelligence, portfolio construction, or noise in a noisy sample is a question this data — with its inherent limitations — cannot definitively resolve.
+
+---
+
+## Reproducibility
+
+```bash
+git clone https://github.com/ggmax-gif/politician-alpha
+cd politician-alpha
+make setup   # creates .venv and installs requirements.txt
+make all     # runs all four pipeline stages
+make notebook
+```
+
+All pipeline outputs are regenerated from scratch; only `data/raw/` caches are preserved across runs to avoid unnecessary network requests.
+
+**References**
+- Wager, S. & Athey, S. (2018). Estimation and inference of heterogeneous treatment effects using random forests. *JASA*, 113(523), 1228–1242.
+- Athey, S., Tibshirani, J. & Wager, S. (2019). Generalized random forests. *Annals of Statistics*, 47(2), 1148–1178.
+- Ziobrowski, A. J., et al. (2004). Abnormal returns from the common stock investments of the U.S. Senate. *Journal of Financial and Quantitative Analysis*, 39(4), 661–676.
+

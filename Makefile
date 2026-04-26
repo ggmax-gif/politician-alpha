@@ -1,7 +1,7 @@
 PYTHON := .venv/bin/python
 PIP    := .venv/bin/pip
 
-.PHONY: all setup scrape prices clean analyse notebook clean-data help
+.PHONY: all setup scrape prices clean analyse notebook html clean-data help
 
 ## Default target
 all: scrape prices clean analyse
@@ -33,6 +33,10 @@ analyse:
 notebook:
 	.venv/bin/jupyter notebook notebooks/blog.ipynb
 
+## Render the blog as a self-contained interactive HTML via Quarto
+html:
+	quarto render notebooks/blog.ipynb --to html --execute
+
 ## Delete derived outputs but keep raw data caches (avoids re-downloading)
 clean-data:
 	rm -f data/processed/*.csv
@@ -50,5 +54,6 @@ help:
 	@echo "  make clean       Stage 3: join party, forward returns, sector labels"
 	@echo "  make analyse     Stage 4: CAPM + causal forest + figures"
 	@echo "  make notebook    Open blog.ipynb in Jupyter"
+	@echo "  make html        Render blog.ipynb -> blog.html via Quarto (interactive)"
 	@echo "  make clean-data  Delete processed outputs (keep raw caches)"
 	@echo ""
