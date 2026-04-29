@@ -30,21 +30,17 @@ jupyter: python3
 
 ---
 
-## 1. Hook
+## 1. Context 
 
-Between September 2012 and November 2020, 37 US senators filed **2,746 stock purchase disclosures** under the STOCK Act. Over the 90 trading days following those purchases, Democratic senators' picks returned an average of **9.0% above the benchmark**, Republican senators' picks **5.9% above**. Both beat the market — but is that really skill, or are they just taking on more risk?
+Between September 2012 and November 2020, 37 US senators filed **2,746 stock purchase disclosures** under the STOCK Act. Over the 90 trading days following those purchases, Democratic senators' picks returned an average of **9.0% above the benchmark**, Republican senators' picks **5.9% above**. Although both beat the market, is that achieved by a greater access to information, or are they just taking on more risk?
 
-The headline numbers are striking. The real story, uncovered by a causal forest, is more nuanced: **when and under what conditions** a senator trades matters far more than which party they belong to.
+The Stop Trading on Congressional Knowledge (STOCK) Act (2012) requires members of Congress to disclose stock trades within 45 days. The idea is to enhancetransparency of lawmakers with access to non-public information about regulation, contracts, and economic policy, as theyshould not be able to quietly profit from the insider information (Which represents an unfair information gap against the general public).
 
-## 2. Why this matters
-
-The Stop Trading on Congressional Knowledge (STOCK) Act (2012) requires members of Congress to disclose stock trades within 45 days. The idea is transparency: lawmakers with access to non-public information about regulation, contracts, and economic policy should not be able to quietly profit from it.
-
-Yet the disclosures themselves are publicly available — which means anyone can, in principle, follow senators' trades. Academic work by Ziobrowski et al. (2004, 2011) found significant abnormal returns on Senate portfolios in the 1990s. Whether that edge persists after the STOCK Act, and whether it differs by party, is an open empirical question.
+The disclosures themselves are publicly available, which means anyone can follow senators' trades. Academic work by Ziobrowski et al. (2004, 2011) found significant abnormal returns on Senate portfolios in the 1990s. Whether that edge persists after the STOCK Act, and whether it differs by party, is the empirical question I am aiming to answer.
 
 This project uses a full panel of Senate Periodic Transaction Reports (PTRs) filed between 2012 and 2020 to estimate CAPM alpha by party, then uses a **causal forest** (Wager & Athey 2018) to surface where within that panel the heterogeneity really lies.
 
-## 3. Data and method
+## 2. Data and method
 
 **Data sources:**
 - Senate trades: 8,350 raw PTR records from the `timothycarambat/senate-stock-watcher-data` GitHub mirror (scrubbed from Senate eFD). Filtered to 5,447 stock trades with valid tickers.
@@ -84,7 +80,7 @@ print(f"Trades: {len(df):,} | Senators: {df.senator.nunique()} | "
       f"{df.transaction_date.min().date()} to {df.transaction_date.max().date()}")
 ```
 
-## 4. Headline result — cumulative returns and CAPM alpha
+## 3. Cumulative returns and CAPM alpha
 
 ```{python}
 #| label: fig-cumulative
@@ -124,11 +120,11 @@ fig.update_layout(height=440)
 fig.show()
 ```
 
-The left panel shows that both parties accumulate positive excess returns over the sample period, with Democrats pulling ahead particularly from 2016 onward. The right panel tells a more sobering story: once we control for **market-risk exposure** (β), Jensen's alpha is statistically indistinguishable from zero for all party × horizon combinations except Republicans at 30 days, where the estimated alpha is actually **negative** (α = −0.76%, t = −3.5, p < 0.001).
+The left panel shows that both parties accumulate positive excess returns over the sample period, with Democrats pulling ahead particularly from 2016 onward. The right panel shows once we control the **market-risk exposure** (β), Jensen's alpha is statistically zero for all party × horizon combinations except Republicans at 30 days, where the estimated alpha is actually **negative** (α = −0.76%, t = −3.5, p < 0.001).
 
-The β estimates are informative: both parties' trades load heavily on market risk (β ≈ 1.25–1.38), meaning senators are not buying defensive stocks — they are tilted toward higher-volatility names. After adjusting for that tilt, the apparent outperformance largely disappears.
+The β estimates are informative, both parties' trades load heavily on market risk (β ≈ 1.25–1.38), meaning senators are not buying defensive stocks — they are tilted toward higher-volatility companies. After adjusting for risk, the advantage largely disappears.
 
-This is consistent with — but does not prove — the hypothesis that senators' apparent gains reflect *risk-taking* rather than *information*.
+No significcant evidence to prove the hypothesis that senators' apparent gains reflect *risk-taking* rather than *information*.
 
 ```{python}
 #| label: tbl-capm
@@ -148,7 +144,7 @@ display(
 )
 ```
 
-## 5. The real story — what the causal forest reveals
+## 4. causal forest 
 
 If the average story is "no significant alpha after risk adjustment", what explains the raw gap between the two parties? The causal forest is designed to answer exactly this: **in which subgroups is the Democrat–Republican gap largest, and what drives it?**
 
@@ -239,27 +235,25 @@ fig.update_layout(height=520)
 fig.show()
 ```
 
-The sector-level mean returns (above) reinforce the heterogeneity story: both parties earn positive mean excess returns across most sectors, but the magnitude varies considerably. The **Information Technology** sector stands out as strong for both parties, consistent with a decade-long bull market in tech; the apparent Democrat advantage in Industrials is the most relevant sector-level finding for the committee-oversight hypothesis.
+The sector-level mean returns (above) reinforce the heterogeneity story: both parties earn positive mean excess returns across most sectors, but the magnitude varies considerably. The **Information Technology** sector stands out as strong for both parties, consistent with a decade-long bull market in tech; the apparent Democrat advantage in Industrials is the most relevant sector level finding for the committee oversight hypothesis.
 
-## 6. Caveats
+## 5. Caveats
 
 Several limitations should temper any strong interpretation:
 
 **Disclosure lag.** Senators have up to 45 days to file after a trade. By the time disclosures are public, the price impact of any informational advantage may already have occurred. Our returns are measured from the *trade date* (which we observe), not the *publication date*, so we are computing an upper bound on the returns a follower could have earned.
 
-**Amount-range censoring.** Dollar values are disclosed only as ranges (e.g. \$15,001–\$50,000). We use the geometric mean of each range as a point estimate. This introduces measurement error in any amount-weighted analysis.
+**Amount-range censoring.** Dollar values are disclosed only as ranges (e.g. \$15,001–\$50,000). We use the geometric mean of each range as a point estimate. This introduces measurement error in any dollar-weighted analysis.
 
 **Survivorship and selection.** Senators who trade more appear more in the data. High-trading senators may have systematically different investment skill (or risk appetite) from low-trading colleagues. The causal forest conditions on observable trade characteristics but cannot control for unobserved senator-level ability.
 
-**Causal identification.** Party affiliation is not randomly assigned. The causal forest estimates *conditional* average treatment effects — how the Democrat–Republican gap varies across trade characteristics — but it does not establish that *being a Democrat causes* better returns. Omitted variables correlated with both party and returns (e.g., seniority, committee assignments, constituent industry composition) could confound the estimate.
+**Causal identification.** Party affiliation is not randomly assigned. The causal forest estimates *conditional* average treatment effects on how the Democrat–Republican gap varies across trade characteristics, but it does not establish that *being a Democrat causes* better returns. Omitted variables correlated with both party and returns (e.g., seniority, committee assignments, constituent industry composition) could confound the estimate.
 
 **Data vintage.** The mirror dataset ends in late 2020. Post-STOCK-Act enforcement has strengthened since then; any edge documented here may have diminished further.
 
-## 7. Conclusion
+## 6. Conclusion
 
-The data suggest that US senators' stock purchases earned positive raw excess returns between 2012 and 2020, but **not statistically significant risk-adjusted alpha** once their above-market beta is accounted for. The estimated Democrat–Republican CATE is a modest +0.95 percentage points, and the causal forest reveals that this gap is most pronounced during high-volatility market regimes — not simply a function of sector allocation.
-
-The honest summary: senators appear to take on more market risk than a passive index investor, and much of their apparent outperformance reflects that risk rather than informational advantage. Whether residual differences reflect genuine legislative intelligence, portfolio construction, or noise in a noisy sample is a question this data — with its inherent limitations — cannot definitively resolve.
+The data suggest that US senators' stock purchases earned positive raw excess returns between 2012 and 2020, but **not statistically significant risk-adjusted alpha** once their above-market beta is accounted for. The estimated Democrat–Republican CATE is a modest +0.95 percentage points, and the causal forest reveals that this gap is most pronounced during high-volatility market regimes, not simply a function of sector allocation. Senators appear to take on more market risk than a passive index investor, and much of their apparent outperformance reflects that risk rather than informational advantage. Whether residual differences reflect genuine legislative intelligence, portfolio construction, or noise in a noisy sample is a question this data — with its inherent limitations which cannot definitively resolve.
 
 ---
 
