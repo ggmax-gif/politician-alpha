@@ -11,7 +11,9 @@ sectors, benchmarked against the S&P 500, and run through:
 - a causal forest (`econml`) to surface heterogeneous treatment effects within each
   party — i.e. *which* trades, by *which* senators, drive the headline alpha.
 
-**Blog post:** [`notebooks/blog.ipynb`](notebooks/blog.ipynb)
+**Blog post (live, interactive):** **<https://ggmax-gif.github.io/politician-alpha/>**
+
+Source: [`notebooks/blog.qmd`](notebooks/blog.qmd) · executed notebook: [`notebooks/blog.ipynb`](notebooks/blog.ipynb)
 
 ---
 
