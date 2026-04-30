@@ -30,7 +30,7 @@ jupyter: python3
 
 ---
 
-## 1. Context 
+## 1. Context
 
 Between September 2012 and November 2020, 37 US senators filed **2,746 stock purchase disclosures** under the STOCK Act. Over the 90 trading days following those purchases, Democratic senators' picks returned an average of **9.0% above the benchmark**, Republican senators' picks **5.9% above**. Although both beat the market, is that achieved by a greater access to information, or are they just taking on more risk?
 
@@ -144,7 +144,7 @@ display(
 )
 ```
 
-## 4. causal forest 
+## 4. Causal forest
 
 If the average story is "no significant alpha after risk adjustment", what explains the raw gap between the two parties? The causal forest is designed to answer exactly this: **in which subgroups is the Democrat–Republican gap largest, and what drives it?**
 
