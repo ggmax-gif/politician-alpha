@@ -9,13 +9,10 @@ sectors, benchmarked against the S&P 500, and run through:
 
 - a CAPM regression to estimate Jensen's alpha by party (`statsmodels` OLS), and
 - a causal forest (`econml`) to surface heterogeneous treatment effects within each
-  party — i.e. *which* trades, by *which* senators, drive the headline alpha.
+  party, i.e. *which* trades, by *which* senators, drive the headline alpha.
 
 **Blog post (live, interactive):** **<https://ggmax-gif.github.io/politician-alpha/>**
 
-Source: [`notebooks/blog.qmd`](notebooks/blog.qmd) · executed notebook: [`notebooks/blog.ipynb`](notebooks/blog.ipynb)
-
----
 
 ## Research question
 
@@ -51,7 +48,7 @@ python src/04_analysis.py       # CAPM + causal forest + plots  -> data/processe
 jupyter notebook notebooks/blog.ipynb
 ```
 
-All steps are idempotent — rerunning skips files that already exist.
+All steps are idempotent, rerunning skips files that already exist.
 
 ## Project layout
 
