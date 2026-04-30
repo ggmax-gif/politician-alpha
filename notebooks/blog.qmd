@@ -17,7 +17,7 @@ format:
     fig-height: 5
     df-print: paged
     smooth-scroll: true
-    embed-resources: true
+    html-math-method: katex
 execute:
   echo: true
   warning: false
